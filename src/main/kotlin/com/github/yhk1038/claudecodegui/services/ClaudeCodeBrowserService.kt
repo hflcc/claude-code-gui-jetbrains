@@ -36,7 +36,7 @@ class ClaudeCodeBrowserService(private val project: Project) : Disposable {
         /** Callback for WebView URL path changes (set by ClaudeCodePanel, consumed by handlers). */
         var onPathChanged: ((String) -> Unit)? = null
 
-        /** Callback for WebView streaming state changes (set by ClaudeCodePanel, consumed by ClaudeCodeFileEditor). */
+        /** Callback for WebView streaming state changes (set by ClaudeCodePanel, consumed by tool window host). */
         var onStreamingStateChanged: ((isStreaming: Boolean) -> Unit)? = null
 
         /** Whether the WebView URL has been loaded at least once. */
@@ -44,6 +44,9 @@ class ClaudeCodeBrowserService(private val project: Project) : Disposable {
 
         /** Whether JCEF handlers (display, load, keyboard, lifespan) have been installed. */
         var handlersInstalled: Boolean = false
+
+        /** Whether native IDE/Swing drag-and-drop has been bridged into the WebView. */
+        var nativeDropBridgeInstalled: Boolean = false
 
         /** Whether the IME NPE workaround has been applied. */
         var imeWorkaroundInstalled: Boolean = false
@@ -67,7 +70,7 @@ class ClaudeCodeBrowserService(private val project: Project) : Disposable {
 
     /**
      * Release and dispose the browser for the given session.
-     * Called only on real tab close (via [ClaudeCodeEditorManagerListener.fileClosed]).
+     * Called when a Claude Code tool window session tab is closed.
      */
     fun release(sessionId: String) {
         holders.remove(sessionId)?.let { holder ->
