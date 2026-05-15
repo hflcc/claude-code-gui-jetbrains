@@ -87,5 +87,26 @@
             class="com.github.yhk1038.claudecodegui.actions.OpenClaudeCodeSettingsAction"
             text="Open Claude Code Settings"
             description="Open Claude Code settings in the tool window"/>
+
+        <!-- Project view: attach paths to chat -->
+        <action
+            id="ClaudeCode.AddFileToChat"
+            class="com.github.yhk1038.claudecodegui.actions.AddFileToChatAction"
+            text="Add File to Chat"
+            description="Attach selected files or folders to the Claude Code chat">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+        </action>
+
+        <!-- Editor: add selection to chat composer -->
+        <action
+            id="ClaudeCode.AddSelectionToChat"
+            class="com.github.yhk1038.claudecodegui.actions.AddSelectionToChatAction"
+            text="Add to Chat"
+            description="Add the current editor selection to the Claude Code chat">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl L"/>
+            <keyboard-shortcut keymap="Mac OS X" first-keystroke="meta L"/>
+            <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="meta L"/>
+        </action>
     </actions>
 </idea-plugin>

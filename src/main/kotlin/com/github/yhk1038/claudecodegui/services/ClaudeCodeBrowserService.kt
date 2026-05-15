@@ -8,7 +8,10 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefBrowserBase
 import com.intellij.ui.jcef.JBCefJSQuery
+import org.cef.browser.CefFrame
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Project-level service that pools JCEF browser instances by sessionId.
@@ -41,6 +44,42 @@ class ClaudeCodeBrowserService(private val project: Project) : Disposable {
 
         /** Whether the WebView URL has been loaded at least once. */
         var isLoaded: Boolean = false
+
+        /**
+         * True after the main frame finishes loading the current document ([onLoadEnd]).
+         * IDE-injected scripts must not run on about:blank before [loadURL]; they are queued and flushed here.
+         */
+        private val mainDocumentReady = AtomicBoolean(false)
+        private val pendingIdeInjectionJs = ConcurrentLinkedQueue<String>()
+
+        fun markMainDocumentNavigating() {
+            mainDocumentReady.set(false)
+        }
+
+        /**
+         * Must run on EDT. Executes immediately if the chat page is ready; otherwise queues for [flushPendingIdeInjectionScripts].
+         */
+        fun injectIdeJavaScriptWhenReady(js: String) {
+            if (mainDocumentReady.get()) {
+                browser.cefBrowser.executeJavaScript(js, browser.cefBrowser.url, 0)
+            } else {
+                pendingIdeInjectionJs.offer(js)
+            }
+        }
+
+        /** Called from [CefLoadHandlerAdapter.onLoadEnd] for the main frame, after base IDE bridges are injected. */
+        fun flushPendingIdeInjectionScripts(frame: CefFrame) {
+            mainDocumentReady.set(true)
+            while (true) {
+                val pending = pendingIdeInjectionJs.poll() ?: break
+                try {
+                    frame.executeJavaScript(pending, frame.url, 0)
+                } catch (e: Exception) {
+                    Logger.getInstance(ClaudeCodeBrowserService::class.java)
+                        .warn("Failed to run pending IDE WebView injection", e)
+                }
+            }
+        }
 
         /** Whether JCEF handlers (display, load, keyboard, lifespan) have been installed. */
         var handlersInstalled: Boolean = false

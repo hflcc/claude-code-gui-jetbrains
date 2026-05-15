@@ -119,6 +119,11 @@ intellijPlatform {
             untilBuild = "261.*"
         }
         changeNotes = """
+            <h3>0.13.11 - IDE context menu → chat</h3>
+            <ul>
+                <li>Add File to Chat from Project view for files and folders</li>
+                <li>Add to Chat from editor selection</li>
+            </ul>
             <h3>0.13.9 - Multi-project routing &amp; chat navigation</h3>
             <ul>
                 <li>Fixed new Claude Code sessions opening in the wrong JetBrains project when multiple IDE windows are connected</li>

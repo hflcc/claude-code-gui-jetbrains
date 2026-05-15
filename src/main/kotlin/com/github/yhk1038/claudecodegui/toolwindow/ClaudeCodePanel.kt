@@ -3,6 +3,7 @@ package com.github.yhk1038.claudecodegui.toolwindow
 import com.github.yhk1038.claudecodegui.actions.OpenClaudeCodeAction
 import com.github.yhk1038.claudecodegui.bridge.NodeProcessManager
 import com.github.yhk1038.claudecodegui.services.ClaudeCodeBrowserService
+import com.github.yhk1038.claudecodegui.services.ClaudeWebViewInjector
 import com.github.yhk1038.claudecodegui.services.DiffService
 import com.github.yhk1038.claudecodegui.services.NodeBackendService
 import com.intellij.ide.dnd.DnDEvent
@@ -28,15 +29,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import org.cef.browser.CefBrowser
 import org.cef.browser.CefFrame
 import org.cef.handler.CefDisplayHandlerAdapter
 import org.cef.handler.CefLifeSpanHandlerAdapter
 import org.cef.handler.CefLoadHandlerAdapter
+import org.cef.network.CefRequest
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Image
@@ -389,42 +387,11 @@ class ClaudeCodePanel(
         if (files.isEmpty()) {
             return
         }
-        val entriesJson = Json.encodeToString(
-            kotlinx.serialization.json.JsonElement.serializer(),
-            buildJsonArray {
-                files.forEach { file ->
-                    add(buildJsonObject {
-                        put("path", file.path)
-                        put("type", if (file.isDirectory) "folder" else "file")
-                    })
-                }
-            },
+        ClaudeWebViewInjector.injectNativeDropEntries(
+            project,
+            sessionId,
+            files.map { ClaudeWebViewInjector.NativeDropEntry(it.path, it.isDirectory) },
         )
-        val js = """
-            (function() {
-              const entries = $entriesJson;
-              window.__CLAUDE_CODE_PENDING_DROP_ENTRIES__ = [
-                ...(window.__CLAUDE_CODE_PENDING_DROP_ENTRIES__ || []),
-                ...entries
-              ];
-              window.dispatchEvent(new CustomEvent('claude-code:native-drop-paths', {
-                detail: { entries }
-              }));
-              setTimeout(function() {
-                window.dispatchEvent(new CustomEvent('claude-code:native-drop-paths', {
-                  detail: { entries }
-                }));
-              }, 100);
-              setTimeout(function() {
-                window.dispatchEvent(new CustomEvent('claude-code:native-drop-paths', {
-                  detail: { entries }
-                }));
-              }, 500);
-            })();
-        """.trimIndent()
-        ApplicationManager.getApplication().invokeLater {
-            browser.cefBrowser.executeJavaScript(js, browser.cefBrowser.url, 0)
-        }
     }
 
     private fun setupBrowserHandlers() {
@@ -458,6 +425,12 @@ class ClaudeCodePanel(
 
         // Inject scripts on page load
         browser.jbCefClient.addLoadHandler(object : CefLoadHandlerAdapter() {
+            override fun onLoadStart(browser: CefBrowser?, frame: CefFrame?, transitionType: CefRequest.TransitionType?) {
+                if (frame?.isMain == true) {
+                    holder.markMainDocumentNavigating()
+                }
+            }
+
             override fun onLoadEnd(browser: CefBrowser, frame: CefFrame, httpStatusCode: Int) {
                 if (frame.isMain) {
                     // Mark JCEF environment so detectRuntime() in environment.ts can detect
@@ -466,6 +439,9 @@ class ClaudeCodePanel(
                     injectCursorTracking(frame)
                     injectStreamingStateBridge(frame)
                     installImeWorkaround()
+                    // IDE context-menu injections queued before the first navigation must run only now,
+                    // otherwise executeJavaScript on about:blank / pre-ready document breaks the load (blank panel).
+                    holder.flushPendingIdeInjectionScripts(frame)
                     logger.info("WebView loaded successfully")
                     // Do not request focus here: sidebar chat should not steal focus from the code editor (Copilot-style UX).
                 }
