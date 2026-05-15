@@ -45,7 +45,7 @@ export function ChatPage() {
   /** Vertical space under fixed SessionHeader reserved in the scroll stream (spacer height). */
   const [headerScrollClearancePx, setHeaderScrollClearancePx] = useState(DEFAULT_HEADER_SCROLL_CLEARANCE_PX);
 
-  const stickyUserPromptTopPx = 0
+  const stickyUserPromptTopPx = 20
 
   useLayoutEffect(() => {
     let raf = 0;
